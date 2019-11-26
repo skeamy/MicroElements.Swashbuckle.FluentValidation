@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using FluentValidation;
@@ -129,6 +129,20 @@ namespace MicroElements.Swashbuckle.FluentValidation
         {
             return new[]
             {
+                new FluentValidationRule("NotListed")
+                {
+                    Matches = propertyValidator => !(propertyValidator is INotNullValidator
+                                                    || propertyValidator is INotEmptyValidator
+                                                    || propertyValidator is ILengthValidator
+                                                    || propertyValidator is IRegularExpressionValidator
+                                                    || propertyValidator is IComparisonValidator
+                                                    || propertyValidator is IBetweenValidator
+                                                    ),
+                    Apply = context =>
+                    {
+                        addMessage(context);
+                    }
+                },
                 new FluentValidationRule("Required")
                 {
                     Matches = propertyValidator => propertyValidator is INotNullValidator || propertyValidator is INotEmptyValidator,
@@ -137,7 +151,10 @@ namespace MicroElements.Swashbuckle.FluentValidation
                         if (context.Schema.Required == null)
                             context.Schema.Required = new SortedSet<string>();
                         if(!context.Schema.Required.Contains(context.PropertyKey))
+                        {
                             context.Schema.Required.Add(context.PropertyKey);
+                            addMessage(context);
+                        }
                     }
                 },
                 new FluentValidationRule("NotEmpty")
@@ -146,6 +163,7 @@ namespace MicroElements.Swashbuckle.FluentValidation
                     Apply = context =>
                     {
                         context.Schema.Properties[context.PropertyKey].MinLength = 1;
+                        addMessage(context);
                     }
                 },
                 new FluentValidationRule("Length")
@@ -156,12 +174,17 @@ namespace MicroElements.Swashbuckle.FluentValidation
                         var lengthValidator = (ILengthValidator)context.PropertyValidator;
 
                         if(lengthValidator.Max > 0)
+                        {
                             context.Schema.Properties[context.PropertyKey].MaxLength = lengthValidator.Max;
+                        }
 
                         if (lengthValidator is MinimumLengthValidator
                             || lengthValidator is ExactLengthValidator
                             || context.Schema.Properties[context.PropertyKey].MinLength == null)
+                        {
                             context.Schema.Properties[context.PropertyKey].MinLength = lengthValidator.Min;
+                        }
+                        addMessage(context);
                     }
                 },
                 new FluentValidationRule("Pattern")
@@ -171,6 +194,7 @@ namespace MicroElements.Swashbuckle.FluentValidation
                     {
                         var regularExpressionValidator = (IRegularExpressionValidator)context.PropertyValidator;
                         context.Schema.Properties[context.PropertyKey].Pattern = regularExpressionValidator.Expression;
+                        addMessage(context);
                     }
                 },
                 new FluentValidationRule("Comparison")
@@ -203,6 +227,7 @@ namespace MicroElements.Swashbuckle.FluentValidation
                                 schemaProperty.ExclusiveMaximum = true;
                             }
                         }
+                        addMessage(context);
                     }
                 },
                 new FluentValidationRule("Between")
@@ -232,9 +257,56 @@ namespace MicroElements.Swashbuckle.FluentValidation
                                 schemaProperty.ExclusiveMaximum = true;
                             }
                         }
+                        addMessage(context);
                     }
                 },
             };
+        }
+        private static void addMessage(RuleContext context)
+        {
+            var message = context.PropertyValidator.Options.ErrorMessageSource.GetString(new ValidationContext(null));
+            var title = "\n\n*Validation Rules*\n\n";
+            if (context.Schema.Properties[context.PropertyKey] != null
+                && !string.IsNullOrWhiteSpace(context.Schema.Properties[context.PropertyKey].Description))
+            {
+                if (context.Schema.Properties[context.PropertyKey].Description.IndexOf(title) > -1)
+                {
+                    message = "\n\n" + message;
+                }
+                else
+                {
+                    message = title + message;
+                }
+            }
+            else
+            {
+                message = title + message;
+            }
+            var friendlyName = string.Concat((string.Concat(context.PropertyKey.First().ToString().ToUpper() + context.PropertyKey.Substring(1))).Select(x => Char.IsUpper(x) ? " " + x : x.ToString())).TrimStart(' ');
+
+            message = message.Replace("{PropertyName}", friendlyName);
+            if (context.Schema.Properties[context.PropertyKey].MaxLength.HasValue)
+            {
+                message = message.Replace("{MaxLength}", context.Schema.Properties[context.PropertyKey].MaxLength.Value.ToString());
+            }
+            if (context.Schema.Properties[context.PropertyKey].MinLength.HasValue)
+            {
+                message = message.Replace("{MinLength}", context.Schema.Properties[context.PropertyKey].MinLength.Value.ToString());
+            }
+            if (context.Schema.Properties[context.PropertyKey].Maximum.HasValue)
+            {
+                message = message.Replace("{Maximum}", context.Schema.Properties[context.PropertyKey].Maximum.Value.ToString());
+            }
+            if (context.Schema.Properties[context.PropertyKey].Minimum.HasValue)
+            {
+                message = message.Replace("{Minimum}", context.Schema.Properties[context.PropertyKey].Minimum.Value.ToString());
+            }
+            message = message.Replace("{TotalLength}", "x");
+
+            if (context.Schema.Properties[context.PropertyKey].Description == null || context.Schema.Properties[context.PropertyKey].Description.IndexOf(message) < 0)
+            {
+                context.Schema.Properties[context.PropertyKey].Description += message;
+            }
         }
     }
 }
