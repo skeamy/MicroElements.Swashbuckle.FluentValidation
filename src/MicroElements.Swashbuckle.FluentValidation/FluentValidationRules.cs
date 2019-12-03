@@ -295,11 +295,25 @@ namespace MicroElements.Swashbuckle.FluentValidation
             }
             if (context.Schema.Properties[context.PropertyKey].Maximum.HasValue)
             {
-                message = message.Replace("{Maximum}", context.Schema.Properties[context.PropertyKey].Maximum.Value.ToString());
+                if (message.IndexOf("less than") > -1)
+                {
+                    message = message.Replace("'{ComparisonValue}'", context.Schema.Properties[context.PropertyKey].Maximum.Value.ToString());
+                }
+                if (message.IndexOf("between") > -1)
+                {
+                    message = message.Replace("{To}", context.Schema.Properties[context.PropertyKey].Maximum.Value.ToString());
+                }
             }
             if (context.Schema.Properties[context.PropertyKey].Minimum.HasValue)
             {
-                message = message.Replace("{Minimum}", context.Schema.Properties[context.PropertyKey].Minimum.Value.ToString());
+                if (message.IndexOf("greater than") > -1)
+                {
+                    message = message.Replace("'{ComparisonValue}'", context.Schema.Properties[context.PropertyKey].Minimum.Value.ToString());
+                }
+                if (message.IndexOf("between") > -1)
+                {
+                    message = message.Replace("{From}", context.Schema.Properties[context.PropertyKey].Minimum.Value.ToString());
+                }
             }
             message = message.Replace("{TotalLength}", "x");
 
